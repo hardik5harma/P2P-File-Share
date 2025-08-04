@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Intranet Share</title>
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/spark-md5/3.0.2/spark-md5.min.js"></script>
+    
+    <!-- Link to your custom CSS file -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-200 text-gray-800 font-sans antialiased">
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-bg">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-sm">
+            <h2 class="text-2xl font-bold mb-4">Welcome!</h2>
+            <p class="text-gray-600 mb-6">Please enter a username to join the network.</p>
+            <input type="text" id="username-input" placeholder="Your Username" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="login-button" class="mt-4 w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">Join</button>
+        </div>
+    </div>
+
+    <!-- Main Application Layout (hidden initially) -->
+    <div id="app-container" class="hidden h-screen w-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white shadow-md p-2 flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center">
+                <i class="fas fa-network-wired text-2xl text-blue-600 mr-3"></i>
+                <h1 class="text-xl font-bold">P2P Intranet Share</h1>
+            </div>
+            <div class="text-sm text-gray-600">
+                Logged in as: <strong id="display-username" class="text-blue-700"></strong> | Your ID: <span id="my-id" class="font-mono text-xs"></span>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-grow flex p-4 gap-4 overflow-hidden">
+            
+            <!-- Left Column: Users & My Files -->
+            <div class="w-1/4 flex flex-col gap-4">
+                <!-- Users List -->
+                <div class="bg-white rounded-lg shadow p-4 flex-1 flex flex-col">
+                    <h2 class="text-lg font-semibold mb-3 border-b pb-2 flex items-center"><i class="fas fa-users mr-2 text-gray-500"></i>Online Users</h2>
+                    <ul id="user-list" class="space-y-2 overflow-y-auto flex-grow">
+                        <!-- User items will be injected by app.js -->
+                    </ul>
+                </div>
+                <!-- My Shared Files -->
+                <div class="bg-white rounded-lg shadow p-4 flex-1 flex flex-col">
+                    <h2 class="text-lg font-semibold mb-3 border-b pb-2 flex items-center"><i class="fas fa-folder-open mr-2 text-gray-500"></i>My Shared Files</h2>
+                    <div id="my-files-list" class="space-y-1 overflow-y-auto flex-grow text-sm">
+                        <p class="text-gray-500 italic">No files shared yet.</p>
+                    </div>
+                    <input type="file" id="add-files-input" multiple class="hidden">
+                    <button id="add-files-button" class="mt-3 w-full bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 transition-colors text-sm">
+                        <i class="fas fa-plus mr-1"></i> Add Files to Share
+                    </button>
+                </div>
+            </div>
+
+            <!-- Center Column: Chat & Search -->
+            <div class="w-1/2 flex flex-col gap-4">
+                <!-- Public Chat -->
+                <!-- **FIX**: Added min-h-0 to the parent container to constrain the flex-grow child -->
+                <div class="bg-white rounded-lg shadow p-4 flex flex-col flex-grow min-h-0">
+                    <h2 class="text-lg font-semibold mb-3 border-b pb-2 flex items-center flex-shrink-0"><i class="fas fa-comments mr-2 text-gray-500"></i>Public Chat</h2>
+                    <div id="chat-messages" class="flex-grow overflow-y-auto p-2 mb-2 bg-gray-50 rounded-md">
+                        <!-- Chat messages injected by app.js -->
+                    </div>
+                    <div class="flex gap-2 flex-shrink-0">
+                        <input type="text" id="chat-input" placeholder="Type a message..." class="flex-grow px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="send-chat-button" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 transition-colors"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+                <!-- File Search -->
+                <!-- **FIX**: Gave the search panel a fixed height and made it a flex container -->
+                <div class="bg-white rounded-lg shadow p-4 flex flex-col flex-shrink-0 h-64">
+                    <h2 class="text-lg font-semibold mb-3 border-b pb-2 flex items-center flex-shrink-0"><i class="fas fa-search mr-2 text-gray-500"></i>Search Network</h2>
+                    <div class="flex gap-2 mb-3 flex-shrink-0">
+                        <input type="text" id="search-input" placeholder="Search for files..." class="flex-grow px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="search-button" class="bg-indigo-500 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-600 transition-colors"><i class="fas fa-search"></i></button>
+                    </div>
+                    <!-- **FIX**: Made the results area grow to fill its parent and scroll -->
+                    <div id="search-results" class="overflow-y-auto flex-grow min-h-0">
+                        <!-- Search results injected by app.js -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Transfers -->
+            <div class="w-1/4 flex flex-col">
+                <div class="bg-white rounded-lg shadow p-4 flex-1 flex flex-col">
+                    <h2 class="text-lg font-semibold mb-3 border-b pb-2 flex items-center"><i class="fas fa-exchange-alt mr-2 text-gray-500"></i>File Transfers</h2>
+                    <div id="transfers-list" class="space-y-3 overflow-y-auto flex-grow">
+                        <p class="text-gray-500 italic">No active transfers.</p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Link to your main JavaScript file -->
+    <script src="/js/app.js"></script>
+</body>
+</html>
