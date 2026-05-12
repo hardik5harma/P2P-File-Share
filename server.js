@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const https = require('https');
 
 const PORT = process.env.PORT || 3000;
 
@@ -11,6 +12,50 @@ const server = http.createServer(app);
 
 // Serve static files (HTML, CSS, JS) from the 'public' directory.
 app.use(express.static(path.join(__dirname, 'public')));
+
+// --- VirusTotal API Endpoint ---
+app.get('/api/scan/:hash', (req, res) => {
+    const hash = req.params.hash;
+    const apiKey = process.env.VT_API_KEY;
+    
+    if (!apiKey) {
+        return res.json({ status: 'error', code: 'NO_API_KEY', message: 'VirusTotal API key not configured on server.' });
+    }
+
+    const options = {
+        hostname: 'www.virustotal.com',
+        path: `/api/v3/files/${hash}`,
+        method: 'GET',
+        headers: {
+            'x-apikey': apiKey
+        }
+    };
+
+    const request = https.request(options, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+            if (response.statusCode === 404) {
+                return res.json({ status: 'not_found' });
+            }
+            if (response.statusCode === 200) {
+                try {
+                    const parsed = JSON.parse(data);
+                    const stats = parsed.data.attributes.last_analysis_stats;
+                    return res.json({ status: 'found', stats: stats });
+                } catch(e) {
+                    return res.status(500).json({ status: 'error', message: 'Failed to parse VT response' });
+                }
+            }
+            res.status(response.statusCode).json({ status: 'error', message: `VT API returned ${response.statusCode}`, data });
+        });
+    });
+
+    request.on('error', (e) => {
+        res.status(500).json({ status: 'error', message: e.message });
+    });
+    request.end();
+});
 
 // --- WebSocket Server for Signaling ---
 const wss = new WebSocketServer({ server });

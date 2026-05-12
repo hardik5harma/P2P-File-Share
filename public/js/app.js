@@ -17,6 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchButton = document.getElementById('search-button');
     const searchResults = document.getElementById('search-results');
     const transfersList = document.getElementById('transfers-list');
+    const scanModal = document.getElementById('scan-modal');
+    const scanModalIcon = document.getElementById('scan-modal-icon');
+    const scanModalTitle = document.getElementById('scan-modal-title');
+    const scanModalMessage = document.getElementById('scan-modal-message');
+    const scanCancelBtn = document.getElementById('scan-cancel-btn');
+    const scanProceedBtn = document.getElementById('scan-proceed-btn');
 
     // --- App State ---
     let ws;
@@ -62,6 +68,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+    }
+
+    function showScanModal(title, message, type, onProceed, onCancel) {
+        scanModalTitle.textContent = title;
+        scanModalMessage.textContent = message;
+        
+        scanModalIcon.innerHTML = '';
+        scanModalIcon.className = 'text-5xl mb-4 ';
+        scanProceedBtn.className = 'px-4 py-2 font-semibold rounded transition-colors text-white ';
+        
+        if (type === 'success') {
+            scanModalIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
+            scanModalIcon.classList.add('text-green-500');
+            scanProceedBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            scanProceedBtn.textContent = 'Save File';
+        } else if (type === 'warning') {
+            scanModalIcon.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            scanModalIcon.classList.add('text-yellow-500');
+            scanProceedBtn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+            scanProceedBtn.textContent = 'Proceed Anyway';
+        } else if (type === 'danger') {
+            scanModalIcon.innerHTML = '<i class="fas fa-radiation"></i>';
+            scanModalIcon.classList.add('text-red-600');
+            scanProceedBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            scanProceedBtn.textContent = 'I Understand';
+        }
+
+        scanCancelBtn.classList.toggle('hidden', !onCancel);
+        
+        scanProceedBtn.onclick = () => {
+            scanModal.classList.add('hidden');
+            if (onProceed) onProceed();
+        };
+        
+        scanCancelBtn.onclick = () => {
+            scanModal.classList.add('hidden');
+            if (onCancel) onCancel();
+        };
+
+        scanModal.classList.remove('hidden');
     }
 
     // --- WebSocket Logic ---
@@ -413,24 +459,77 @@ document.addEventListener('DOMContentLoaded', () => {
         readAndSend();
     }
 
+    function promptSaveFile(blob, fileInfo, transferId) {
+        updateTransferUI(transferId, 'Download complete!', 'bg-green-100');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileInfo.name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    }
+
     function verifyAndSaveFile(blob, fileInfo) {
         const transferId = fileInfo.hash;
         updateTransferUI(transferId, 'Verifying hash...', 'bg-yellow-100');
         
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             const receivedHash = SparkMD5.ArrayBuffer.hash(e.target.result);
             if (receivedHash === fileInfo.hash) {
-                logMessage(`<div class="text-green-600 italic my-2">File '${fileInfo.name}' verified successfully!</div>`);
-                updateTransferUI(transferId, 'Download complete!', 'bg-green-100');
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileInfo.name;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
+                logMessage(`<div class="text-green-600 italic my-2">File '${fileInfo.name}' verified successfully! Scanning...</div>`);
+                updateTransferUI(transferId, 'Scanning with VirusTotal...', 'bg-blue-100');
+                
+                try {
+                    const res = await fetch(`/api/scan/${fileInfo.hash}`);
+                    const result = await res.json();
+                    
+                    if (result.code === 'NO_API_KEY') {
+                        console.warn('VirusTotal API key not configured, skipping scan.');
+                        promptSaveFile(blob, fileInfo, transferId);
+                    } else if (result.status === 'not_found') {
+                        showScanModal(
+                            'Unknown File', 
+                            'This file was not found in the VirusTotal database. Proceed with caution.', 
+                            'warning', 
+                            () => promptSaveFile(blob, fileInfo, transferId),
+                            () => updateTransferUI(transferId, 'Cancelled', 'bg-gray-100')
+                        );
+                    } else if (result.status === 'found') {
+                        const malicious = result.stats.malicious || 0;
+                        const suspicious = result.stats.suspicious || 0;
+                        
+                        if (malicious > 0 || suspicious > 0) {
+                            showScanModal(
+                                'Threat Detected!', 
+                                `VirusTotal flagged this file as malicious (${malicious} malicious, ${suspicious} suspicious). Download blocked.`, 
+                                'danger',
+                                () => updateTransferUI(transferId, 'Blocked (Malware)', 'bg-red-100')
+                            );
+                            logMessage(`<div class="text-red-600 font-bold my-2">BLOCKED: '${fileInfo.name}' is flagged as malware.</div>`);
+                        } else {
+                            showScanModal(
+                                'File Clean', 
+                                'VirusTotal scan found no threats. The file is safe to download.', 
+                                'success', 
+                                () => promptSaveFile(blob, fileInfo, transferId)
+                            );
+                        }
+                    } else {
+                        throw new Error(result.message || 'Unknown scan error');
+                    }
+                } catch (err) {
+                    console.error('Scan error:', err);
+                    showScanModal(
+                        'Scan Error', 
+                        'Could not complete the virus scan. The service may be down.', 
+                        'warning', 
+                        () => promptSaveFile(blob, fileInfo, transferId),
+                        () => updateTransferUI(transferId, 'Cancelled', 'bg-gray-100')
+                    );
+                }
             } else {
                 logMessage(`<div class="text-red-500 italic my-2">File integrity check failed for '${fileInfo.name}'. Please try again.</div>`);
                 updateTransferUI(transferId, 'Verification Failed!', 'bg-red-100');

@@ -104,6 +104,42 @@ Follow these steps to get the application running on your machine.
 
 ---
 
+## Security & Threat Detection (VirusTotal)
+
+This application includes a built-in integration with the **VirusTotal API** to automatically scan files for malware before they are downloaded to your computer.
+
+To enable this feature, you must configure a free VirusTotal API key:
+
+1. **Get an API Key:**
+   - Go to [VirusTotal.com](https://www.virustotal.com/) and create a free account.
+   - Click on your profile icon in the top right and select **API key**.
+   - Copy your alphanumeric API key.
+
+2. **Configure the Environment Variable:**
+   You must set the `VT_API_KEY` environment variable before running the Node.js server.
+   
+   **On Windows (Command Prompt):**
+   ```cmd
+   set VT_API_KEY=your_copied_api_key_here
+   node server.js
+   ```
+   
+   **On Windows (PowerShell):**
+   ```powershell
+   $env:VT_API_KEY="your_copied_api_key_here"
+   node server.js
+   ```
+   
+   **On macOS / Linux:**
+   ```bash
+   export VT_API_KEY="your_copied_api_key_here"
+   node server.js
+   ```
+
+*Note: If the API key is not configured, the app will gracefully skip the scan and allow the download as normal.*
+
+---
+
 ## Future Improvements
 
 * **Private Messaging:** Implement one-to-one chat between users.
